@@ -5,6 +5,7 @@ import FileAppender from "./FileAppender";
 import { App, Component, MarkdownRenderer, MarkdownView, normalizePath, setIcon } from "obsidian";
 import { ExecutorSettings } from "../settings/Settings";
 import { ChildProcess } from "child_process";
+import { match } from "assert";
 
 export const TOGGLE_HTML_SIGIL = `TOGGLE_HTML_${Math.random().toString(16).substring(2)}`;
 export const BEGIN_RENDER_AS_LATEX = ">beginLaTeX<"
@@ -12,7 +13,7 @@ export const END_RENDER_AS_LATEX = ">endLaTeX<"
 export class Outputter extends EventEmitter {
 	codeBlockElement: HTMLElement;
 	outputElement: HTMLElement;
-	outputRawText = "";
+	outputRawText: string;
 	clearButton: HTMLButtonElement;
 	copyButton: HTMLButtonElement;
 	lastPrintElem: HTMLSpanElement;
@@ -49,6 +50,7 @@ export class Outputter extends EventEmitter {
 		this.escapeHTML = true;
 		this.htmlBuffer = "";
 		this.blockRunState = "INITIAL";
+		this.outputRawText = "";
 
 		this.saveToFile = new FileAppender(view, codeBlock.parentElement as HTMLPreElement);
 	}
@@ -83,7 +85,15 @@ export class Outputter extends EventEmitter {
 	}
 
 	copy() {
-		navigator.clipboard.writeText(this.outputRawText);
+		let toCopy = this.outputRawText;
+		toCopy = toCopy.replaceAll("\\\\", " \\\\\n");
+		toCopy = toCopy.replaceAll("\\end{", "\n\\end{");
+		toCopy = toCopy.replaceAll(/(\\begin\{.*\})/g, "$1\n")
+		toCopy = toCopy.replaceAll(/(\\end\{.*\})(?!\\right)(.+)/g, "$1\n$2")
+		toCopy = toCopy.replaceAll(/(\\end\{.*\}\\right(\)|\]|\}))(.+)/g, "$1\n$3")
+		toCopy = toCopy.replaceAll(/(.+)(\\left(\(|\[|\{)\\begin)/g, "$1\n$2")
+		toCopy = toCopy.replaceAll(/^(?!\\left(\(|\[|\{))(.+)(\\begin)/g, "$2\n$3")
+		navigator.clipboard.writeText(toCopy);
 	}
 
 
@@ -109,6 +119,7 @@ export class Outputter extends EventEmitter {
 	 * @param text The stdout data in question
 	 */
 	write(text: string) {
+		this.outputRawText = "";
 		this.processSigilsAndWriteText(text);
 
 	}

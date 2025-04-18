@@ -15,7 +15,8 @@
 			"ES5",
 			"ES6",
 			"ES7",
-			"ES2018"
+			"ES2018",
+			"ES2021"
 		],
 		"types": ["obsidian-typings"]
 	},
