@@ -118,11 +118,16 @@ export function expandColorTheme(source: string, theme: string): string {
  * @returns The transformed source code.
  */
 export function expandPython(source: string, settings: ExecutorSettings): string {
+	console.log(1)
+	console.log(source)
 	if (settings.pythonEmbedPlots) {
 		source = expandPythonPlots(source, TOGGLE_HTML_SIGIL);
 	}
 	source = expandPythonShowImage(source);
 	source = expandPythonHtmlMacro(source);
+	console.log(2)
+	console.log(source)
+	console.log(3)
 	return source;
 }
 

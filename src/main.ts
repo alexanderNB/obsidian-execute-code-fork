@@ -51,13 +51,22 @@ export default class ExecuteCodePlugin extends Plugin {
 			runButton.addToAllCodeBlocks(element, _context.sourcePath, this.app.workspace.getActiveViewOfType(MarkdownView), context);
 		});
 
-		// live preview renderers
-		supportedLanguages.forEach(l => {
-			console.debug(`Registering renderer for ${l}.`)
-			this.registerMarkdownCodeBlockProcessor(`run-${l}`, async (src, el, _ctx) => {
-				await MarkdownRenderer.render(this.app, '```' + l + '\n' + src + (src.endsWith('\n') ? '' : '\n') + '```', el, _ctx.sourcePath, new Component());
-			});
+
+		this.registerMarkdownCodeBlockProcessor(`output`, async (src, el, _ctx) => {
+			await MarkdownRenderer.render(this.app, '$$' + '\n' + src + (src.endsWith('\n') ? '' : '\n') + '$$', el, _ctx.sourcePath, new Component());
 		});
+
+		this.registerMarkdownCodeBlockProcessor(`Python`, async (src, el, _ctx) => {
+			await MarkdownRenderer.render(this.app, '```' + "python" + '\n' + src + (src.endsWith('\n') ? '' : '\n') + '```', el, _ctx.sourcePath, new Component());
+		});
+
+		// live preview renderers
+		// supportedLanguages.forEach(l => {
+		// 	console.debug(`Registering renderer for ${l}.`)
+		// 	this.registerMarkdownCodeBlockProcessor(`run-${l}`, async (src, el, _ctx) => {
+		// 		await MarkdownRenderer.render(this.app, '```' + l + '\n' + src + (src.endsWith('\n') ? '' : '\n') + '```', el, _ctx.sourcePath, new Component());
+		// 	});
+		// });
 
 		//executor manager
 

@@ -127,7 +127,7 @@ function addToCodeBlock(codeBlock: HTMLElement, file: string, view: MarkdownView
     }
 
     const language = codeBlock.className.toLowerCase();
-
+    
     if (!language || !language.contains("language-"))
         return;
 
@@ -201,9 +201,12 @@ function runCode(cmd: string, cmdArgs: string, ext: string, block: CodeBlockCont
     const executor = block.executors.getExecutorFor(block.markdownFile, block.language, useShell);
     executor.run(block.srcCode, block.outputter, cmd, cmdArgs, ext).then(() => {
         block.button.className = buttonClass;
+        console.log("Yep")
         if (!useShell) {
+            console.log("Yep2")
             block.outputter.closeInput();
             block.outputter.finishBlock();
         }
+
     });
 }

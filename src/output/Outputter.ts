@@ -7,11 +7,14 @@ import { ExecutorSettings } from "../settings/Settings";
 import { ChildProcess } from "child_process";
 
 export const TOGGLE_HTML_SIGIL = `TOGGLE_HTML_${Math.random().toString(16).substring(2)}`;
-
+export const BEGIN_RENDER_AS_LATEX = ">beginLaTeX<"
+export const END_RENDER_AS_LATEX = ">endLaTeX<"
 export class Outputter extends EventEmitter {
 	codeBlockElement: HTMLElement;
 	outputElement: HTMLElement;
+	outputRawText = "";
 	clearButton: HTMLButtonElement;
+	copyButton: HTMLButtonElement;
 	lastPrintElem: HTMLSpanElement;
 	lastPrinted: string;
 
@@ -54,6 +57,8 @@ export class Outputter extends EventEmitter {
 	 * Clears the output log.
 	 */
 	clear() {
+		
+
 		if (this.outputElement) {
 			for (const child of Array.from(this.outputElement.children)) {
 				if (child instanceof HTMLSpanElement)
@@ -76,6 +81,12 @@ export class Outputter extends EventEmitter {
 		// Kill code block
 		this.killBlock(this.runningSubprocesses);
 	}
+
+	copy() {
+		navigator.clipboard.writeText(this.outputRawText);
+	}
+
+
 
 	/**
 	 * Kills the code block.
@@ -154,6 +165,32 @@ export class Outputter extends EventEmitter {
 
 			text = text.substring(index + TOGGLE_HTML_SIGIL.length);
 		}
+		while (true) {
+			let beginIndex = text.indexOf(BEGIN_RENDER_AS_LATEX);
+			let endIndex = text.indexOf(END_RENDER_AS_LATEX);
+			if (beginIndex === -1 || endIndex === -1) break;
+
+			if (beginIndex > 0) this.writeRaw(text.substring(0, beginIndex));
+			let big = false
+			if (text.substring(beginIndex + BEGIN_RENDER_AS_LATEX.length).startsWith(">BiG<")){
+				big = true
+			}
+
+			if (big){
+				this.writeRaw(text.substring(beginIndex + BEGIN_RENDER_AS_LATEX.length + 5, endIndex), "big")
+			}
+			else{
+				this.writeRaw(text.substring(beginIndex + BEGIN_RENDER_AS_LATEX.length, endIndex), "small")
+			}
+
+
+			// this.escapeHTML = !this.escapeHTML;	
+
+			// this.writeHTMLBuffer(this.addStdout());
+			text = text.substring(endIndex + END_RENDER_AS_LATEX.length);
+		}
+
+
 		this.writeRaw(text);
 	}
 
@@ -161,7 +198,7 @@ export class Outputter extends EventEmitter {
 	 * Writes a segment of stdout data without caring about the HTML sigil
 	 * @param text The stdout data in question
 	 */
-	private writeRaw(text: string) {
+	private writeRaw(text: string, render_as_latex = "") {
 		//remove ANSI escape codes
 		text = text.replace(/\x1b\\[;\d]*m/g, "")
 
@@ -171,8 +208,8 @@ export class Outputter extends EventEmitter {
 			// make visible again:
 			this.makeOutputVisible();
 		}
-
-		this.escapeAwareAppend(this.addStdout(), text);
+		if (text == "") return
+		this.escapeAwareAppend(this.addStdout(), text, render_as_latex);
 	}
 
 	/**
@@ -187,9 +224,9 @@ export class Outputter extends EventEmitter {
 		if (this.textPrinted(text)) {
 			// make visible again:
 			this.makeOutputVisible()
+			this.addStderr().appendText(text);
 		}
 
-		this.addStderr().appendText(text);
 
 	}
 
@@ -243,6 +280,10 @@ export class Outputter extends EventEmitter {
 	finishBlock() {
 		if (this.loadStateIndicatorElement) {
 			this.loadStateIndicatorElement.classList.remove("visible");
+			if (this.loadStateIndicatorElement){
+				this.getParentElement().parentElement.removeChild(this.loadStateIndicatorElement);
+				this.loadStateIndicatorElement = null
+			}
 		}
 
 		this.blockRunState = "FINISHED";
@@ -272,6 +313,17 @@ export class Outputter extends EventEmitter {
 		this.clearButton.addEventListener("click", () => this.delete());
 
 		parentEl.appendChild(this.clearButton);
+	}
+
+	private addCopyButton() {
+		const parentEl = this.getParentElement();
+
+		this.copyButton = document.createElement("button");
+		this.copyButton.className = "copy-button";
+		this.copyButton.setText("Copy");
+		this.copyButton.addEventListener("click", () => this.copy());
+
+		parentEl.appendChild(this.copyButton);
 	}
 
 	private addOutputElement() {
@@ -366,10 +418,22 @@ export class Outputter extends EventEmitter {
 	 * @param element Element to append to
 	 * @param text text to append
 	 */
-	private escapeAwareAppend(element: HTMLElement, text: string) {
+	private escapeAwareAppend(element: HTMLElement, text: string, render_as_latex : string) {
+
 		if (this.escapeHTML) {
 			// If we're escaping HTML, just append the text
-			element.appendChild(document.createTextNode(text));
+			if (render_as_latex == "big"){
+				this.outputRawText += "$$\n" + text + "\n$$\n"
+				MarkdownRenderer.render(this.app, "$$\n" + text + "\n$$", element, this.srcFile ,new Component());
+			}
+			else if (render_as_latex == "small"){
+				this.outputRawText += "$" + text + "$\n"
+				MarkdownRenderer.render(this.app, "$" + text + "$", element, this.srcFile ,new Component());
+			}
+			else{
+				this.outputRawText += text
+				element.appendChild(document.createTextNode(text));
+			}
 
 			if (this.settings.persistentOuput) {
 				// Also append to file in separate code block
@@ -412,7 +476,7 @@ export class Outputter extends EventEmitter {
 	 * @returns Whether text has been printed or will be printed
 	 */
 	private textPrinted(text: string) {
-		if (this.hadPreviouslyPrinted) return true;
+		// if (this.hadPreviouslyPrinted) return true;
 
 		if (text.contains(TOGGLE_HTML_SIGIL)) return false;
 		if (text === "") return false;
@@ -429,11 +493,13 @@ export class Outputter extends EventEmitter {
 	private makeOutputVisible() {
 		this.closeInput();
 		if (!this.clearButton) this.addClearButton();
+		if (!this.copyButton) this.addCopyButton();
 		if (!this.outputElement) this.addOutputElement();
 
 		this.inputState = "OPEN";
 		this.outputElement.style.display = "block";
 		this.clearButton.className = "clear-button";
+		this.copyButton.className = "copy-button";
 
 		setTimeout(() => {
 			if (this.inputState === "OPEN") this.inputElement.style.display = "inline";
